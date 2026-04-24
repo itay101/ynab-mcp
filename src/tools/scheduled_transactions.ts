@@ -22,20 +22,7 @@ const frequencyEnum = z
   ])
   .describe("How often the scheduled transaction repeats.");
 
-type Frequency =
-  | "never"
-  | "daily"
-  | "weekly"
-  | "everyOtherWeek"
-  | "twiceAMonth"
-  | "every4Weeks"
-  | "monthly"
-  | "everyOtherMonth"
-  | "every3Months"
-  | "every4Months"
-  | "twiceAYear"
-  | "yearly"
-  | "everyOtherYear";
+type Frequency = z.infer<typeof frequencyEnum>;
 
 export async function listScheduledTransactions(args: {
   budget_id?: string;

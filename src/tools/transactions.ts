@@ -141,7 +141,7 @@ export async function bulkCreateTransactions(args: {
   const client = getClient();
   const budgetId = args.budget_id ?? "last-used";
   const response = await client.transactions.createTransactions(budgetId, {
-    transactions: args.transactions,
+    transactions: args.transactions as any,
   });
   return response.data;
 }
@@ -250,7 +250,7 @@ export function register(server: McpServer): void {
 
   server.tool(
     "update_transaction",
-    "Update an existing transaction. Amounts are in milliunits (1000 = $1.00).",
+    "Update an existing transaction. Amounts are in milliunits (1000 = $1.00). Note: account_id, date, and amount are required even for partial updates — the YNAB API replaces the full transaction.",
     {
       ...transactionCreateSchema,
       transaction_id: z.string().describe("The transaction ID to update."),
