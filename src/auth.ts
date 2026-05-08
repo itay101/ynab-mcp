@@ -133,7 +133,10 @@ export class YNABOAuthProvider implements OAuthServerProvider {
     _client: OAuthClientInformationFull,
     code: string
   ): Promise<string> {
-    return this._pendingCodes.get(code)?.codeChallenge ?? "";
+    this._cleanupExpired();
+    const pending = this._pendingCodes.get(code);
+    if (!pending) throw new Error("Authorization code not found or expired");
+    return pending.codeChallenge;
   }
 
   async exchangeAuthorizationCode(

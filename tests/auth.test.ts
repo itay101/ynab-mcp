@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { YNABOAuthProvider } from "../src/auth.js";
 
 const CLIENT_ID = "test-client-id";
@@ -139,6 +139,13 @@ describe("YNABOAuthProvider.challengeForAuthorizationCode + exchangeAuthorizatio
     const ourCode = await setupPendingCode(provider);
     const challenge = await provider.challengeForAuthorizationCode(fakeClient as never, ourCode);
     expect(challenge).toBe("challenge-xyz");
+  });
+
+  it("challengeForAuthorizationCode throws for unknown code", async () => {
+    const provider = makeProvider();
+    await expect(
+      provider.challengeForAuthorizationCode(fakeClient as never, "unknown-code")
+    ).rejects.toThrow("Authorization code not found or expired");
   });
 
   it("exchangeAuthorizationCode returns YNAB tokens and deletes code", async () => {
