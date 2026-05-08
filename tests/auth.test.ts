@@ -17,32 +17,68 @@ const fakeClient = {
 };
 
 describe("YNABOAuthProvider.clientsStore", () => {
-  it("registerClient stores client and returns our YNAB client_id", async () => {
+  it("registerClient stores client and returns a unique UUID as client_id", async () => {
     const provider = makeProvider();
     const registered = await provider.clientsStore.registerClient!({
       redirect_uris: ["http://localhost:4321/cb"],
     } as Parameters<typeof provider.clientsStore.registerClient>[0]);
 
-    expect(registered.client_id).toBe(CLIENT_ID);
-    expect(registered.client_secret).toBe(CLIENT_SECRET);
+    expect(registered.client_id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+    );
+    expect(registered.client_secret).toBeUndefined();
     expect(registered.redirect_uris).toContain("http://localhost:4321/cb");
   });
 
-  it("getClient returns previously registered client", async () => {
+  it("two registrations get independent client_ids and do not share redirect URIs", async () => {
     const provider = makeProvider();
-    await provider.clientsStore.registerClient!({
+    const a = await provider.clientsStore.registerClient!({
+      redirect_uris: ["http://localhost:1111/cb"],
+    } as Parameters<typeof provider.clientsStore.registerClient>[0]);
+    const b = await provider.clientsStore.registerClient!({
+      redirect_uris: ["http://localhost:2222/cb"],
+    } as Parameters<typeof provider.clientsStore.registerClient>[0]);
+
+    expect(a.client_id).not.toBe(b.client_id);
+
+    const clientA = await provider.clientsStore.getClient(a.client_id);
+    const clientB = await provider.clientsStore.getClient(b.client_id);
+    expect(clientA!.redirect_uris).toEqual(["http://localhost:1111/cb"]);
+    expect(clientB!.redirect_uris).toEqual(["http://localhost:2222/cb"]);
+  });
+
+  it("getClient returns previously registered client by its UUID", async () => {
+    const provider = makeProvider();
+    const registered = await provider.clientsStore.registerClient!({
       redirect_uris: ["http://localhost:4321/cb"],
     } as Parameters<typeof provider.clientsStore.registerClient>[0]);
 
-    const found = await provider.clientsStore.getClient(CLIENT_ID);
+    const found = await provider.clientsStore.getClient(registered.client_id);
     expect(found).toBeDefined();
-    expect(found!.client_id).toBe(CLIENT_ID);
+    expect(found!.client_id).toBe(registered.client_id);
   });
 
   it("getClient returns undefined for unknown clientId", async () => {
     const provider = makeProvider();
     const found = await provider.clientsStore.getClient("unknown");
     expect(found).toBeUndefined();
+  });
+
+  it("registerClient rejects non-localhost redirect URIs", () => {
+    const provider = makeProvider();
+    expect(() =>
+      provider.clientsStore.registerClient!({
+        redirect_uris: ["https://attacker.example.com/cb"],
+      } as Parameters<typeof provider.clientsStore.registerClient>[0])
+    ).toThrow("Redirect URI must use localhost");
+  });
+
+  it("registerClient accepts 127.0.0.1 redirect URIs", async () => {
+    const provider = makeProvider();
+    const registered = await provider.clientsStore.registerClient!({
+      redirect_uris: ["http://127.0.0.1:8080/cb"],
+    } as Parameters<typeof provider.clientsStore.registerClient>[0]);
+    expect(registered.redirect_uris).toContain("http://127.0.0.1:8080/cb");
   });
 });
 
