@@ -22,15 +22,38 @@ function createMcpServer() {
   return server;
 }
 
+function readBody(req: IncomingMessage): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    let data = "";
+    req.on("data", (chunk) => (data += chunk));
+    req.on("end", () => {
+      try {
+        resolve(data ? JSON.parse(data) : undefined);
+      } catch {
+        reject(new Error("Invalid JSON body"));
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
 if (process.env.PORT) {
   // HTTP mode for Railway / remote deployments
   const port = parseInt(process.env.PORT, 10);
 
   const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-    const server = createMcpServer();
-    await server.connect(transport);
-    await transport.handleRequest(req, res);
+    try {
+      const body = req.method === "POST" ? await readBody(req) : undefined;
+      const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+      const server = createMcpServer();
+      await server.connect(transport);
+      await transport.handleRequest(req, res, body);
+      res.on("finish", () => server.close());
+    } catch (err) {
+      if (!res.headersSent) {
+        res.writeHead(500).end("Internal server error");
+      }
+    }
   });
 
   httpServer.listen(port, () => {
