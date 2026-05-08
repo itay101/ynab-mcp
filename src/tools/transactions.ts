@@ -29,8 +29,8 @@ export async function listTransactions(args: {
   since_date?: string;
   type?: "uncategorized" | "unapproved";
   last_knowledge_of_server?: number;
-}) {
-  const client = getClient();
+}, token?: string) {
+  const client = getClient(token);
   const budgetId = args.budget_id ?? "last-used";
   const response = await client.transactions.getTransactions(
     budgetId,
@@ -41,8 +41,8 @@ export async function listTransactions(args: {
   return response.data;
 }
 
-export async function getTransaction(args: { budget_id?: string; transaction_id: string }) {
-  const client = getClient();
+export async function getTransaction(args: { budget_id?: string; transaction_id: string }, token?: string) {
+  const client = getClient(token);
   const budgetId = args.budget_id ?? "last-used";
   const response = await client.transactions.getTransactionById(budgetId, args.transaction_id);
   return response.data;
@@ -61,8 +61,8 @@ export async function createTransaction(args: {
   approved?: boolean;
   flag_color?: "red" | "orange" | "yellow" | "green" | "blue" | "purple";
   import_id?: string;
-}) {
-  const client = getClient();
+}, token?: string) {
+  const client = getClient(token);
   const budgetId = args.budget_id ?? "last-used";
   const response = await client.transactions.createTransaction(budgetId, {
     transaction: {
@@ -95,8 +95,8 @@ export async function updateTransaction(args: {
   cleared?: "cleared" | "uncleared" | "reconciled";
   approved?: boolean;
   flag_color?: "red" | "orange" | "yellow" | "green" | "blue" | "purple";
-}) {
-  const client = getClient();
+}, token?: string) {
+  const client = getClient(token);
   const budgetId = args.budget_id ?? "last-used";
   const response = await client.transactions.updateTransaction(budgetId, args.transaction_id, {
     transaction: {
@@ -115,8 +115,8 @@ export async function updateTransaction(args: {
   return response.data;
 }
 
-export async function deleteTransaction(args: { budget_id?: string; transaction_id: string }) {
-  const client = getClient();
+export async function deleteTransaction(args: { budget_id?: string; transaction_id: string }, token?: string) {
+  const client = getClient(token);
   const budgetId = args.budget_id ?? "last-used";
   const response = await client.transactions.deleteTransaction(budgetId, args.transaction_id);
   return response.data;
@@ -137,8 +137,8 @@ export async function bulkCreateTransactions(args: {
     flag_color?: string;
     import_id?: string;
   }>;
-}) {
-  const client = getClient();
+}, token?: string) {
+  const client = getClient(token);
   const budgetId = args.budget_id ?? "last-used";
   const response = await client.transactions.createTransactions(budgetId, {
     transactions: args.transactions as any,
@@ -152,8 +152,8 @@ export async function listTransactionsByAccount(args: {
   since_date?: string;
   type?: "uncategorized" | "unapproved";
   last_knowledge_of_server?: number;
-}) {
-  const client = getClient();
+}, token?: string) {
+  const client = getClient(token);
   const budgetId = args.budget_id ?? "last-used";
   const response = await client.transactions.getTransactionsByAccount(
     budgetId,
@@ -171,8 +171,8 @@ export async function listTransactionsByCategory(args: {
   since_date?: string;
   type?: "uncategorized" | "unapproved";
   last_knowledge_of_server?: number;
-}) {
-  const client = getClient();
+}, token?: string) {
+  const client = getClient(token);
   const budgetId = args.budget_id ?? "last-used";
   const response = await client.transactions.getTransactionsByCategory(
     budgetId,
@@ -190,8 +190,8 @@ export async function listTransactionsByPayee(args: {
   since_date?: string;
   type?: "uncategorized" | "unapproved";
   last_knowledge_of_server?: number;
-}) {
-  const client = getClient();
+}, token?: string) {
+  const client = getClient(token);
   const budgetId = args.budget_id ?? "last-used";
   const response = await client.transactions.getTransactionsByPayee(
     budgetId,
@@ -218,7 +218,7 @@ const transactionCreateSchema = {
   import_id: z.string().optional().describe("Import ID for idempotent imports."),
 };
 
-export function register(server: McpServer): void {
+export function register(server: McpServer, token?: string): void {
   server.tool(
     "list_transactions",
     "List transactions for a budget. Optionally filter by date or type.",
@@ -228,7 +228,7 @@ export function register(server: McpServer): void {
       type: transactionTypeEnum,
       last_knowledge_of_server: lastKnowledgeSchema,
     },
-    (args) => wrapHandler(() => listTransactions(args))
+    (args) => wrapHandler(() => listTransactions(args, token))
   );
 
   server.tool(
@@ -238,14 +238,14 @@ export function register(server: McpServer): void {
       budget_id: budgetIdSchema,
       transaction_id: z.string().describe("The transaction ID."),
     },
-    (args) => wrapHandler(() => getTransaction(args))
+    (args) => wrapHandler(() => getTransaction(args, token))
   );
 
   server.tool(
     "create_transaction",
     "Create a new transaction. Amounts are in milliunits (1000 = $1.00; use negative for outflows).",
     transactionCreateSchema,
-    (args) => wrapHandler(() => createTransaction(args))
+    (args) => wrapHandler(() => createTransaction(args, token))
   );
 
   server.tool(
@@ -255,7 +255,7 @@ export function register(server: McpServer): void {
       ...transactionCreateSchema,
       transaction_id: z.string().describe("The transaction ID to update."),
     },
-    (args) => wrapHandler(() => updateTransaction(args))
+    (args) => wrapHandler(() => updateTransaction(args, token))
   );
 
   server.tool(
@@ -265,7 +265,7 @@ export function register(server: McpServer): void {
       budget_id: budgetIdSchema,
       transaction_id: z.string().describe("The transaction ID to delete."),
     },
-    (args) => wrapHandler(() => deleteTransaction(args))
+    (args) => wrapHandler(() => deleteTransaction(args, token))
   );
 
   server.tool(
@@ -291,7 +291,7 @@ export function register(server: McpServer): void {
         )
         .describe("Array of transactions to create."),
     },
-    (args) => wrapHandler(() => bulkCreateTransactions(args))
+    (args) => wrapHandler(() => bulkCreateTransactions(args, token))
   );
 
   server.tool(
@@ -304,7 +304,7 @@ export function register(server: McpServer): void {
       type: transactionTypeEnum,
       last_knowledge_of_server: lastKnowledgeSchema,
     },
-    (args) => wrapHandler(() => listTransactionsByAccount(args))
+    (args) => wrapHandler(() => listTransactionsByAccount(args, token))
   );
 
   server.tool(
@@ -317,7 +317,7 @@ export function register(server: McpServer): void {
       type: transactionTypeEnum,
       last_knowledge_of_server: lastKnowledgeSchema,
     },
-    (args) => wrapHandler(() => listTransactionsByCategory(args))
+    (args) => wrapHandler(() => listTransactionsByCategory(args, token))
   );
 
   server.tool(
@@ -330,6 +330,6 @@ export function register(server: McpServer): void {
       type: transactionTypeEnum,
       last_knowledge_of_server: lastKnowledgeSchema,
     },
-    (args) => wrapHandler(() => listTransactionsByPayee(args))
+    (args) => wrapHandler(() => listTransactionsByPayee(args, token))
   );
 }

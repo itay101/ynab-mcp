@@ -7,26 +7,26 @@ import { wrapHandler } from "../utils.js";
 export async function listAccounts(args: {
   budget_id?: string;
   last_knowledge_of_server?: number;
-}) {
-  const client = getClient();
+}, token?: string) {
+  const client = getClient(token);
   const budgetId = args.budget_id ?? "last-used";
   const response = await client.accounts.getAccounts(budgetId, args.last_knowledge_of_server);
   return response.data;
 }
 
-export async function getAccount(args: { budget_id?: string; account_id: string }) {
-  const client = getClient();
+export async function getAccount(args: { budget_id?: string; account_id: string }, token?: string) {
+  const client = getClient(token);
   const budgetId = args.budget_id ?? "last-used";
   const response = await client.accounts.getAccountById(budgetId, args.account_id);
   return response.data;
 }
 
-export function register(server: McpServer): void {
+export function register(server: McpServer, token?: string): void {
   server.tool(
     "list_accounts",
     "List all accounts in a budget.",
     { budget_id: budgetIdSchema, last_knowledge_of_server: lastKnowledgeSchema },
-    (args) => wrapHandler(() => listAccounts(args))
+    (args) => wrapHandler(() => listAccounts(args, token))
   );
 
   server.tool(
@@ -36,6 +36,6 @@ export function register(server: McpServer): void {
       budget_id: budgetIdSchema,
       account_id: z.string().describe("The account ID."),
     },
-    (args) => wrapHandler(() => getAccount(args))
+    (args) => wrapHandler(() => getAccount(args, token))
   );
 }
