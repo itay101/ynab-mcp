@@ -1,48 +1,21 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 
 vi.mock("ynab", () => ({
   API: vi.fn().mockImplementation((token: string) => ({ token })),
 }));
 
 describe("getClient", () => {
-  let originalToken: string | undefined;
-
-  beforeEach(() => {
-    originalToken = process.env.YNAB_API_TOKEN;
-    vi.resetModules();
-  });
-
-  afterEach(() => {
-    if (originalToken === undefined) {
-      delete process.env.YNAB_API_TOKEN;
-    } else {
-      process.env.YNAB_API_TOKEN = originalToken;
-    }
-  });
-
-  it("returns a YNAB API instance when token is set", async () => {
-    process.env.YNAB_API_TOKEN = "test-token";
+  it("returns a ynab.API instance for the given token", async () => {
     const { getClient } = await import("../src/client.js");
-    const client = getClient();
+    const client = getClient("my-token");
     expect(client).toBeDefined();
+    expect((client as unknown as { token: string }).token).toBe("my-token");
   });
 
-  it("returns the same instance on multiple calls", async () => {
-    process.env.YNAB_API_TOKEN = "test-token";
+  it("returns a new instance on each call (no singleton)", async () => {
     const { getClient } = await import("../src/client.js");
-    const a = getClient();
-    const b = getClient();
-    expect(a).toBe(b);
-  });
-
-  it("calls process.exit(1) when YNAB_API_TOKEN is not set", async () => {
-    delete process.env.YNAB_API_TOKEN;
-    const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => {
-      throw new Error("process.exit called");
-    });
-    const { getClient } = await import("../src/client.js");
-    expect(() => getClient()).toThrow("process.exit called");
-    expect(exitSpy).toHaveBeenCalledWith(1);
-    exitSpy.mockRestore();
+    const a = getClient("tok-1");
+    const b = getClient("tok-2");
+    expect(a).not.toBe(b);
   });
 });

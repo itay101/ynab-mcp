@@ -24,11 +24,11 @@ const frequencyEnum = z
 
 type Frequency = z.infer<typeof frequencyEnum>;
 
-export async function listScheduledTransactions(args: {
-  budget_id?: string;
-  last_knowledge_of_server?: number;
-}) {
-  const client = getClient();
+export async function listScheduledTransactions(
+  args: { budget_id?: string; last_knowledge_of_server?: number },
+  token: string
+) {
+  const client = getClient(token);
   const budgetId = args.budget_id ?? "last-used";
   const response = await client.scheduledTransactions.getScheduledTransactions(
     budgetId,
@@ -37,11 +37,11 @@ export async function listScheduledTransactions(args: {
   return response.data;
 }
 
-export async function getScheduledTransaction(args: {
-  budget_id?: string;
-  scheduled_transaction_id: string;
-}) {
-  const client = getClient();
+export async function getScheduledTransaction(
+  args: { budget_id?: string; scheduled_transaction_id: string },
+  token: string
+) {
+  const client = getClient(token);
   const budgetId = args.budget_id ?? "last-used";
   const response = await client.scheduledTransactions.getScheduledTransactionById(
     budgetId,
@@ -50,19 +50,22 @@ export async function getScheduledTransaction(args: {
   return response.data;
 }
 
-export async function createScheduledTransaction(args: {
-  budget_id?: string;
-  account_id: string;
-  date: string;
-  amount: number;
-  frequency: Frequency;
-  payee_id?: string;
-  payee_name?: string;
-  category_id?: string;
-  memo?: string;
-  flag_color?: "red" | "orange" | "yellow" | "green" | "blue" | "purple";
-}) {
-  const client = getClient();
+export async function createScheduledTransaction(
+  args: {
+    budget_id?: string;
+    account_id: string;
+    date: string;
+    amount: number;
+    frequency: Frequency;
+    payee_id?: string;
+    payee_name?: string;
+    category_id?: string;
+    memo?: string;
+    flag_color?: "red" | "orange" | "yellow" | "green" | "blue" | "purple";
+  },
+  token: string
+) {
+  const client = getClient(token);
   const budgetId = args.budget_id ?? "last-used";
   const response = await client.scheduledTransactions.createScheduledTransaction(budgetId, {
     scheduled_transaction: {
@@ -80,20 +83,23 @@ export async function createScheduledTransaction(args: {
   return response.data;
 }
 
-export async function updateScheduledTransaction(args: {
-  budget_id?: string;
-  scheduled_transaction_id: string;
-  account_id: string;
-  date: string;
-  amount: number;
-  frequency: Frequency;
-  payee_id?: string;
-  payee_name?: string;
-  category_id?: string;
-  memo?: string;
-  flag_color?: "red" | "orange" | "yellow" | "green" | "blue" | "purple";
-}) {
-  const client = getClient();
+export async function updateScheduledTransaction(
+  args: {
+    budget_id?: string;
+    scheduled_transaction_id: string;
+    account_id: string;
+    date: string;
+    amount: number;
+    frequency: Frequency;
+    payee_id?: string;
+    payee_name?: string;
+    category_id?: string;
+    memo?: string;
+    flag_color?: "red" | "orange" | "yellow" | "green" | "blue" | "purple";
+  },
+  token: string
+) {
+  const client = getClient(token);
   const budgetId = args.budget_id ?? "last-used";
   const response = await client.scheduledTransactions.updateScheduledTransaction(
     budgetId,
@@ -115,11 +121,11 @@ export async function updateScheduledTransaction(args: {
   return response.data;
 }
 
-export async function deleteScheduledTransaction(args: {
-  budget_id?: string;
-  scheduled_transaction_id: string;
-}) {
-  const client = getClient();
+export async function deleteScheduledTransaction(
+  args: { budget_id?: string; scheduled_transaction_id: string },
+  token: string
+) {
+  const client = getClient(token);
   const budgetId = args.budget_id ?? "last-used";
   const response = await client.scheduledTransactions.deleteScheduledTransaction(
     budgetId,
@@ -150,12 +156,12 @@ const scheduledTransactionBaseSchema = {
     .describe("Flag color."),
 };
 
-export function register(server: McpServer): void {
+export function register(server: McpServer, token: string): void {
   server.tool(
     "list_scheduled_transactions",
     "List all scheduled transactions in a budget.",
     { budget_id: budgetIdSchema, last_knowledge_of_server: lastKnowledgeSchema },
-    (args) => wrapHandler(() => listScheduledTransactions(args))
+    (args) => wrapHandler(() => listScheduledTransactions(args, token))
   );
 
   server.tool(
@@ -165,14 +171,14 @@ export function register(server: McpServer): void {
       budget_id: budgetIdSchema,
       scheduled_transaction_id: z.string().describe("The scheduled transaction ID."),
     },
-    (args) => wrapHandler(() => getScheduledTransaction(args))
+    (args) => wrapHandler(() => getScheduledTransaction(args, token))
   );
 
   server.tool(
     "create_scheduled_transaction",
     "Create a new scheduled (recurring) transaction. Amounts are in milliunits (1000 = $1.00).",
     scheduledTransactionBaseSchema,
-    (args) => wrapHandler(() => createScheduledTransaction(args))
+    (args) => wrapHandler(() => createScheduledTransaction(args, token))
   );
 
   server.tool(
@@ -182,7 +188,7 @@ export function register(server: McpServer): void {
       ...scheduledTransactionBaseSchema,
       scheduled_transaction_id: z.string().describe("The scheduled transaction ID to update."),
     },
-    (args) => wrapHandler(() => updateScheduledTransaction(args))
+    (args) => wrapHandler(() => updateScheduledTransaction(args, token))
   );
 
   server.tool(
@@ -192,6 +198,6 @@ export function register(server: McpServer): void {
       budget_id: budgetIdSchema,
       scheduled_transaction_id: z.string().describe("The scheduled transaction ID to delete."),
     },
-    (args) => wrapHandler(() => deleteScheduledTransaction(args))
+    (args) => wrapHandler(() => deleteScheduledTransaction(args, token))
   );
 }
