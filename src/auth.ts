@@ -29,40 +29,49 @@ interface PendingCode {
   expiresAt: number;
 }
 
+interface RegisteredClient {
+  client: OAuthClientInformationFull;
+  expiresAt: number;
+}
+
 export class YNABOAuthProvider implements OAuthServerProvider {
   private readonly ynabClientId: string;
   private readonly ynabClientSecret: string;
   private readonly callbackUrl: string;
 
-  private readonly _clients = new Map<string, OAuthClientInformationFull>();
+  private readonly _clients = new Map<string, RegisteredClient>();
   private readonly _pendingAuths = new Map<string, PendingAuth>();
   private readonly _pendingCodes = new Map<string, PendingCode>();
+  private readonly _cleanupTimer: ReturnType<typeof setInterval>;
 
   constructor(ynabClientId: string, ynabClientSecret: string, serverUrl: string) {
     this.ynabClientId = ynabClientId;
     this.ynabClientSecret = ynabClientSecret;
     this.callbackUrl = `${serverUrl}/oauth/callback`;
+    this._cleanupTimer = setInterval(() => this._cleanupExpired(), 10 * 60 * 1000);
+    this._cleanupTimer.unref();
   }
 
   get clientsStore(): OAuthRegisteredClientsStore {
     return {
-      getClient: (clientId: string) => this._clients.get(clientId),
+      getClient: (clientId: string) => this._clients.get(clientId)?.client,
       registerClient: (clientData) => {
-        const existing = this._clients.get(this.ynabClientId);
-        const mergedUris = [
-          ...new Set([
-            ...(existing?.redirect_uris ?? []),
-            ...clientData.redirect_uris,
-          ]),
-        ];
+        for (const uri of clientData.redirect_uris) {
+          const { hostname } = new URL(uri);
+          if (hostname !== "localhost" && hostname !== "127.0.0.1") {
+            throw new Error(`Redirect URI must use localhost: ${uri}`);
+          }
+        }
+        const clientId = randomUUID();
         const client: OAuthClientInformationFull = {
           ...clientData,
-          redirect_uris: mergedUris,
-          client_id: this.ynabClientId,
-          client_secret: this.ynabClientSecret,
+          client_id: clientId,
           client_id_issued_at: Math.floor(Date.now() / 1000),
         };
-        this._clients.set(this.ynabClientId, client);
+        this._clients.set(clientId, {
+          client,
+          expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+        });
         return client;
       },
     };
@@ -202,5 +211,6 @@ export class YNABOAuthProvider implements OAuthServerProvider {
     const now = Date.now();
     for (const [k, v] of this._pendingAuths) if (now > v.expiresAt) this._pendingAuths.delete(k);
     for (const [k, v] of this._pendingCodes) if (now > v.expiresAt) this._pendingCodes.delete(k);
+    for (const [k, v] of this._clients) if (now > v.expiresAt) this._clients.delete(k);
   }
 }
