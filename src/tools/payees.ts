@@ -4,43 +4,52 @@ import { getClient } from "../client.js";
 import { budgetIdSchema, lastKnowledgeSchema } from "../schemas.js";
 import { wrapHandler } from "../utils.js";
 
-export async function listPayees(args: {
-  budget_id?: string;
-  last_knowledge_of_server?: number;
-}) {
-  const client = getClient();
+export async function listPayees(
+  args: { budget_id?: string; last_knowledge_of_server?: number },
+  token: string
+) {
+  const client = getClient(token);
   const budgetId = args.budget_id ?? "last-used";
   const response = await client.payees.getPayees(budgetId, args.last_knowledge_of_server);
   return response.data;
 }
 
-export async function getPayee(args: { budget_id?: string; payee_id: string }) {
-  const client = getClient();
+export async function getPayee(
+  args: { budget_id?: string; payee_id: string },
+  token: string
+) {
+  const client = getClient(token);
   const budgetId = args.budget_id ?? "last-used";
   const response = await client.payees.getPayeeById(budgetId, args.payee_id);
   return response.data;
 }
 
-export async function listPayeeLocations(args: { budget_id?: string }) {
-  const client = getClient();
+export async function listPayeeLocations(
+  args: { budget_id?: string },
+  token: string
+) {
+  const client = getClient(token);
   const budgetId = args.budget_id ?? "last-used";
   const response = await client.payeeLocations.getPayeeLocations(budgetId);
   return response.data;
 }
 
-export async function getPayeeLocation(args: { budget_id?: string; payee_id: string }) {
-  const client = getClient();
+export async function getPayeeLocation(
+  args: { budget_id?: string; payee_id: string },
+  token: string
+) {
+  const client = getClient(token);
   const budgetId = args.budget_id ?? "last-used";
   const response = await client.payeeLocations.getPayeeLocationsByPayee(budgetId, args.payee_id);
   return response.data;
 }
 
-export function register(server: McpServer): void {
+export function register(server: McpServer, token: string): void {
   server.tool(
     "list_payees",
     "List all payees in a budget.",
     { budget_id: budgetIdSchema, last_knowledge_of_server: lastKnowledgeSchema },
-    (args) => wrapHandler(() => listPayees(args))
+    (args) => wrapHandler(() => listPayees(args, token))
   );
 
   server.tool(
@@ -50,14 +59,14 @@ export function register(server: McpServer): void {
       budget_id: budgetIdSchema,
       payee_id: z.string().describe("The payee ID."),
     },
-    (args) => wrapHandler(() => getPayee(args))
+    (args) => wrapHandler(() => getPayee(args, token))
   );
 
   server.tool(
     "list_payee_locations",
     "List all payee locations in a budget (geographic coordinates for payees).",
     { budget_id: budgetIdSchema },
-    (args) => wrapHandler(() => listPayeeLocations(args))
+    (args) => wrapHandler(() => listPayeeLocations(args, token))
   );
 
   server.tool(
@@ -67,6 +76,6 @@ export function register(server: McpServer): void {
       budget_id: budgetIdSchema,
       payee_id: z.string().describe("The payee ID."),
     },
-    (args) => wrapHandler(() => getPayeeLocation(args))
+    (args) => wrapHandler(() => getPayeeLocation(args, token))
   );
 }

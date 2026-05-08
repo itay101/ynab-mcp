@@ -10,15 +10,15 @@ import { register as registerTransactions } from "./tools/transactions.js";
 import { register as registerScheduledTransactions } from "./tools/scheduled_transactions.js";
 import { register as registerMonths } from "./tools/months.js";
 
-function createMcpServer() {
+function createMcpServer(token: string) {
   const server = new McpServer({ name: "ynab-mcp", version: "1.0.0" });
-  registerBudgets(server);
-  registerAccounts(server);
-  registerCategories(server);
-  registerPayees(server);
-  registerTransactions(server);
-  registerScheduledTransactions(server);
-  registerMonths(server);
+  registerBudgets(server, token);
+  registerAccounts(server, token);
+  registerCategories(server, token);
+  registerPayees(server, token);
+  registerTransactions(server, token);
+  registerScheduledTransactions(server, token);
+  registerMonths(server, token);
   return server;
 }
 
@@ -43,9 +43,15 @@ if (process.env.PORT) {
 
   const httpServer = createServer(async (req: IncomingMessage, res: ServerResponse) => {
     try {
+      const authHeader = req.headers["authorization"] ?? "";
+      const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+      if (!token) {
+        res.writeHead(401).end(JSON.stringify({ error: "Missing Bearer token" }));
+        return;
+      }
       const body = req.method === "POST" ? await readBody(req) : undefined;
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-      const server = createMcpServer();
+      const server = createMcpServer(token);
       await server.connect(transport);
       await transport.handleRequest(req, res, body);
       res.on("finish", () => server.close());
@@ -61,7 +67,8 @@ if (process.env.PORT) {
   });
 } else {
   // Stdio mode for local Claude Desktop / CLI usage
-  const server = createMcpServer();
+  const token = process.env.YNAB_API_TOKEN ?? "";
+  const server = createMcpServer(token);
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }

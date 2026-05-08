@@ -4,30 +4,36 @@ import { getClient } from "../client.js";
 import { budgetIdSchema, lastKnowledgeSchema } from "../schemas.js";
 import { wrapHandler } from "../utils.js";
 
-export async function listCategories(args: {
-  budget_id?: string;
-  last_knowledge_of_server?: number;
-}) {
-  const client = getClient();
+export async function listCategories(
+  args: { budget_id?: string; last_knowledge_of_server?: number },
+  token: string
+) {
+  const client = getClient(token);
   const budgetId = args.budget_id ?? "last-used";
   const response = await client.categories.getCategories(budgetId, args.last_knowledge_of_server);
   return response.data;
 }
 
-export async function getCategory(args: { budget_id?: string; category_id: string }) {
-  const client = getClient();
+export async function getCategory(
+  args: { budget_id?: string; category_id: string },
+  token: string
+) {
+  const client = getClient(token);
   const budgetId = args.budget_id ?? "last-used";
   const response = await client.categories.getCategoryById(budgetId, args.category_id);
   return response.data;
 }
 
-export async function updateCategoryBudget(args: {
-  budget_id?: string;
-  month: string;
-  category_id: string;
-  budgeted: number;
-}) {
-  const client = getClient();
+export async function updateCategoryBudget(
+  args: {
+    budget_id?: string;
+    month: string;
+    category_id: string;
+    budgeted: number;
+  },
+  token: string
+) {
+  const client = getClient(token);
   const budgetId = args.budget_id ?? "last-used";
   const response = await client.categories.updateMonthCategory(
     budgetId,
@@ -38,12 +44,12 @@ export async function updateCategoryBudget(args: {
   return response.data;
 }
 
-export function register(server: McpServer): void {
+export function register(server: McpServer, token: string): void {
   server.tool(
     "list_categories",
     "List all category groups and their categories for a budget.",
     { budget_id: budgetIdSchema, last_knowledge_of_server: lastKnowledgeSchema },
-    (args) => wrapHandler(() => listCategories(args))
+    (args) => wrapHandler(() => listCategories(args, token))
   );
 
   server.tool(
@@ -53,7 +59,7 @@ export function register(server: McpServer): void {
       budget_id: budgetIdSchema,
       category_id: z.string().describe("The category ID."),
     },
-    (args) => wrapHandler(() => getCategory(args))
+    (args) => wrapHandler(() => getCategory(args, token))
   );
 
   server.tool(
@@ -67,6 +73,6 @@ export function register(server: McpServer): void {
       category_id: z.string().describe("The category ID."),
       budgeted: z.number().int().describe("Budgeted amount in milliunits (1000 = $1.00)."),
     },
-    (args) => wrapHandler(() => updateCategoryBudget(args))
+    (args) => wrapHandler(() => updateCategoryBudget(args, token))
   );
 }
