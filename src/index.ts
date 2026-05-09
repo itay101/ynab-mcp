@@ -39,7 +39,8 @@ if (process.env.PORT) {
   }
 
   const port = parseInt(process.env.PORT, 10);
-  const provider = new YNABOAuthProvider(ynabClientId, ynabClientSecret, serverUrl);
+  const clientsFile = process.env.CLIENTS_FILE ?? "./clients.json";
+  const provider = new YNABOAuthProvider(ynabClientId, ynabClientSecret, serverUrl, clientsFile);
   const issuerUrl = new URL(serverUrl);
   const resourceMetadataUrl = `${serverUrl}/.well-known/oauth-protected-resource`;
 
