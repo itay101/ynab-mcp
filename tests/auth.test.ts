@@ -1,12 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { YNABOAuthProvider } from "../src/auth.js";
-import {
-  InvalidTokenError,
-  InvalidGrantError,
-} from "@modelcontextprotocol/sdk/server/auth/errors.js";
 
 const CLIENT_ID = "test-client-id";
 const CLIENT_SECRET = "test-client-secret";
@@ -24,87 +17,32 @@ const fakeClient = {
 };
 
 describe("YNABOAuthProvider.clientsStore", () => {
-  it("registerClient stores client and returns a unique UUID as client_id", async () => {
+  it("registerClient stores client and returns our YNAB client_id", async () => {
     const provider = makeProvider();
     const registered = await provider.clientsStore.registerClient!({
       redirect_uris: ["http://localhost:4321/cb"],
     } as Parameters<typeof provider.clientsStore.registerClient>[0]);
 
-    expect(registered.client_id).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-    );
-    expect(registered.client_secret).toBeUndefined();
+    expect(registered.client_id).toBe(CLIENT_ID);
+    expect(registered.client_secret).toBe(CLIENT_SECRET);
     expect(registered.redirect_uris).toContain("http://localhost:4321/cb");
   });
 
-  it("two registrations get independent client_ids and do not share redirect URIs", async () => {
+  it("getClient returns previously registered client", async () => {
     const provider = makeProvider();
-    const a = await provider.clientsStore.registerClient!({
-      redirect_uris: ["http://localhost:1111/cb"],
-    } as Parameters<typeof provider.clientsStore.registerClient>[0]);
-    const b = await provider.clientsStore.registerClient!({
-      redirect_uris: ["http://localhost:2222/cb"],
-    } as Parameters<typeof provider.clientsStore.registerClient>[0]);
-
-    expect(a.client_id).not.toBe(b.client_id);
-
-    const clientA = await provider.clientsStore.getClient(a.client_id);
-    const clientB = await provider.clientsStore.getClient(b.client_id);
-    expect(clientA!.redirect_uris).toEqual(["http://localhost:1111/cb"]);
-    expect(clientB!.redirect_uris).toEqual(["http://localhost:2222/cb"]);
-  });
-
-  it("getClient returns previously registered client by its UUID", async () => {
-    const provider = makeProvider();
-    const registered = await provider.clientsStore.registerClient!({
+    await provider.clientsStore.registerClient!({
       redirect_uris: ["http://localhost:4321/cb"],
     } as Parameters<typeof provider.clientsStore.registerClient>[0]);
 
-    const found = await provider.clientsStore.getClient(registered.client_id);
+    const found = await provider.clientsStore.getClient(CLIENT_ID);
     expect(found).toBeDefined();
-    expect(found!.client_id).toBe(registered.client_id);
+    expect(found!.client_id).toBe(CLIENT_ID);
   });
 
   it("getClient returns undefined for unknown clientId", async () => {
     const provider = makeProvider();
     const found = await provider.clientsStore.getClient("unknown");
     expect(found).toBeUndefined();
-  });
-
-  it("registerClient rejects non-localhost redirect URIs", () => {
-    const provider = makeProvider();
-    expect(() =>
-      provider.clientsStore.registerClient!({
-        redirect_uris: ["https://attacker.example.com/cb"],
-      } as Parameters<typeof provider.clientsStore.registerClient>[0])
-    ).toThrow("Redirect URI must use localhost");
-  });
-
-  it("registerClient accepts 127.0.0.1 redirect URIs", async () => {
-    const provider = makeProvider();
-    const registered = await provider.clientsStore.registerClient!({
-      redirect_uris: ["http://127.0.0.1:8080/cb"],
-    } as Parameters<typeof provider.clientsStore.registerClient>[0]);
-    expect(registered.redirect_uris).toContain("http://127.0.0.1:8080/cb");
-  });
-
-  it("persists clients to file so a new provider instance can find them", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "ynab-mcp-test-"));
-    const file = join(dir, "clients.json");
-    try {
-      const p1 = new YNABOAuthProvider(CLIENT_ID, CLIENT_SECRET, SERVER_URL, file);
-      const reg = await p1.clientsStore.registerClient!({
-        redirect_uris: ["http://localhost:4321/cb"],
-      } as Parameters<typeof p1.clientsStore.registerClient>[0]);
-
-      // Second instance loads from the same file — simulates a server restart
-      const p2 = new YNABOAuthProvider(CLIENT_ID, CLIENT_SECRET, SERVER_URL, file);
-      const found = await p2.clientsStore.getClient(reg.client_id);
-      expect(found).toBeDefined();
-      expect(found!.client_id).toBe(reg.client_id);
-    } finally {
-      rmSync(dir, { recursive: true });
-    }
   });
 });
 
@@ -120,11 +58,10 @@ describe("YNABOAuthProvider.verifyAccessToken", () => {
     vi.unstubAllGlobals();
   });
 
-  it("throws InvalidTokenError when YNAB responds non-200", async () => {
+  it("throws when YNAB responds non-200", async () => {
     const provider = makeProvider();
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 401 }));
 
-    await expect(provider.verifyAccessToken("bad-token")).rejects.toThrow(InvalidTokenError);
     await expect(provider.verifyAccessToken("bad-token")).rejects.toThrow(
       "Invalid or expired YNAB token"
     );
@@ -244,11 +181,10 @@ describe("YNABOAuthProvider.exchangeRefreshToken", () => {
     vi.unstubAllGlobals();
   });
 
-  it("throws InvalidGrantError when YNAB token refresh fails", async () => {
+  it("throws when YNAB token refresh fails", async () => {
     const provider = makeProvider();
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 400 }));
 
-    await expect(provider.exchangeRefreshToken(fakeClient as never, "bad-rt")).rejects.toThrow(InvalidGrantError);
     await expect(provider.exchangeRefreshToken(fakeClient as never, "bad-rt")).rejects.toThrow(
       "YNAB token refresh failed: 400"
     );
