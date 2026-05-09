@@ -14,6 +14,7 @@ import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import {
   InvalidTokenError,
   InvalidGrantError,
+  InvalidClientMetadataError,
 } from "@modelcontextprotocol/sdk/server/auth/errors.js";
 
 const YNAB_AUTHORIZE_URL = "https://app.ynab.com/oauth/authorize";
@@ -67,7 +68,7 @@ export class YNABOAuthProvider implements OAuthServerProvider {
         for (const uri of clientData.redirect_uris) {
           const { hostname } = new URL(uri);
           if (hostname !== "localhost" && hostname !== "127.0.0.1") {
-            throw new Error(`Redirect URI must use localhost: ${uri}`);
+            throw new InvalidClientMetadataError(`Redirect URI must use localhost: ${uri}`);
           }
         }
         const clientId = randomUUID();
