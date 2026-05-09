@@ -3,6 +3,10 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { YNABOAuthProvider } from "../src/auth.js";
+import {
+  InvalidTokenError,
+  InvalidGrantError,
+} from "@modelcontextprotocol/sdk/server/auth/errors.js";
 
 const CLIENT_ID = "test-client-id";
 const CLIENT_SECRET = "test-client-secret";
@@ -116,10 +120,11 @@ describe("YNABOAuthProvider.verifyAccessToken", () => {
     vi.unstubAllGlobals();
   });
 
-  it("throws when YNAB responds non-200", async () => {
+  it("throws InvalidTokenError when YNAB responds non-200", async () => {
     const provider = makeProvider();
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 401 }));
 
+    await expect(provider.verifyAccessToken("bad-token")).rejects.toThrow(InvalidTokenError);
     await expect(provider.verifyAccessToken("bad-token")).rejects.toThrow(
       "Invalid or expired YNAB token"
     );
@@ -239,10 +244,11 @@ describe("YNABOAuthProvider.exchangeRefreshToken", () => {
     vi.unstubAllGlobals();
   });
 
-  it("throws when YNAB token refresh fails", async () => {
+  it("throws InvalidGrantError when YNAB token refresh fails", async () => {
     const provider = makeProvider();
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 400 }));
 
+    await expect(provider.exchangeRefreshToken(fakeClient as never, "bad-rt")).rejects.toThrow(InvalidGrantError);
     await expect(provider.exchangeRefreshToken(fakeClient as never, "bad-rt")).rejects.toThrow(
       "YNAB token refresh failed: 400"
     );
