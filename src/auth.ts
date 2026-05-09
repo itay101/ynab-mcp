@@ -11,6 +11,10 @@ import type {
   OAuthTokens,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
+import {
+  InvalidTokenError,
+  InvalidGrantError,
+} from "@modelcontextprotocol/sdk/server/auth/errors.js";
 
 const YNAB_AUTHORIZE_URL = "https://app.ynab.com/oauth/authorize";
 const YNAB_TOKEN_URL = "https://api.youneedabudget.com/oauth/token";
@@ -185,7 +189,7 @@ export class YNABOAuthProvider implements OAuthServerProvider {
       body: params.toString(),
     });
     if (!response.ok) {
-      throw new Error(`YNAB token refresh failed: ${response.status}`);
+      throw new InvalidGrantError(`YNAB token refresh failed: ${response.status}`);
     }
     const tokens = (await response.json()) as {
       access_token: string;
@@ -203,7 +207,7 @@ export class YNABOAuthProvider implements OAuthServerProvider {
     const response = await fetch(YNAB_USER_URL, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!response.ok) throw new Error("Invalid or expired YNAB token");
+    if (!response.ok) throw new InvalidTokenError("Invalid or expired YNAB token");
     return {
       token,
       clientId: this.ynabClientId,
