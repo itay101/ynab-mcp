@@ -1,4 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { YNABOAuthProvider } from "../src/auth.js";
 
 const CLIENT_ID = "test-client-id";
@@ -79,6 +82,25 @@ describe("YNABOAuthProvider.clientsStore", () => {
       redirect_uris: ["http://127.0.0.1:8080/cb"],
     } as Parameters<typeof provider.clientsStore.registerClient>[0]);
     expect(registered.redirect_uris).toContain("http://127.0.0.1:8080/cb");
+  });
+
+  it("persists clients to file so a new provider instance can find them", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ynab-mcp-test-"));
+    const file = join(dir, "clients.json");
+    try {
+      const p1 = new YNABOAuthProvider(CLIENT_ID, CLIENT_SECRET, SERVER_URL, file);
+      const reg = await p1.clientsStore.registerClient!({
+        redirect_uris: ["http://localhost:4321/cb"],
+      } as Parameters<typeof p1.clientsStore.registerClient>[0]);
+
+      // Second instance loads from the same file — simulates a server restart
+      const p2 = new YNABOAuthProvider(CLIENT_ID, CLIENT_SECRET, SERVER_URL, file);
+      const found = await p2.clientsStore.getClient(reg.client_id);
+      expect(found).toBeDefined();
+      expect(found!.client_id).toBe(reg.client_id);
+    } finally {
+      rmSync(dir, { recursive: true });
+    }
   });
 });
 

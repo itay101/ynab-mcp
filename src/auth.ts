@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { readFileSync, writeFileSync } from "node:fs";
 import type { Response } from "express";
 import type {
   OAuthServerProvider,
@@ -38,16 +39,19 @@ export class YNABOAuthProvider implements OAuthServerProvider {
   private readonly ynabClientId: string;
   private readonly ynabClientSecret: string;
   private readonly callbackUrl: string;
+  private readonly _clientsFile: string | null;
 
   private readonly _clients = new Map<string, RegisteredClient>();
   private readonly _pendingAuths = new Map<string, PendingAuth>();
   private readonly _pendingCodes = new Map<string, PendingCode>();
   private readonly _cleanupTimer: ReturnType<typeof setInterval>;
 
-  constructor(ynabClientId: string, ynabClientSecret: string, serverUrl: string) {
+  constructor(ynabClientId: string, ynabClientSecret: string, serverUrl: string, clientsFile?: string) {
     this.ynabClientId = ynabClientId;
     this.ynabClientSecret = ynabClientSecret;
     this.callbackUrl = `${serverUrl}/oauth/callback`;
+    this._clientsFile = clientsFile ?? null;
+    if (this._clientsFile) this._loadClients();
     this._cleanupTimer = setInterval(() => this._cleanupExpired(), 10 * 60 * 1000);
     this._cleanupTimer.unref();
   }
@@ -72,6 +76,7 @@ export class YNABOAuthProvider implements OAuthServerProvider {
           client,
           expiresAt: Date.now() + 24 * 60 * 60 * 1000,
         });
+        this._saveClients();
         return client;
       },
     };
@@ -211,6 +216,35 @@ export class YNABOAuthProvider implements OAuthServerProvider {
     const now = Date.now();
     for (const [k, v] of this._pendingAuths) if (now > v.expiresAt) this._pendingAuths.delete(k);
     for (const [k, v] of this._pendingCodes) if (now > v.expiresAt) this._pendingCodes.delete(k);
-    for (const [k, v] of this._clients) if (now > v.expiresAt) this._clients.delete(k);
+    let clientsChanged = false;
+    for (const [k, v] of this._clients) {
+      if (now > v.expiresAt) {
+        this._clients.delete(k);
+        clientsChanged = true;
+      }
+    }
+    if (clientsChanged) this._saveClients();
+  }
+
+  private _loadClients(): void {
+    try {
+      const raw = readFileSync(this._clientsFile!, "utf8");
+      const data = JSON.parse(raw) as Record<string, RegisteredClient>;
+      const now = Date.now();
+      for (const [id, entry] of Object.entries(data)) {
+        if (entry.expiresAt > now) this._clients.set(id, entry);
+      }
+    } catch {
+      // File missing or corrupt — start with empty map
+    }
+  }
+
+  private _saveClients(): void {
+    if (!this._clientsFile) return;
+    try {
+      writeFileSync(this._clientsFile, JSON.stringify(Object.fromEntries(this._clients)), "utf8");
+    } catch {
+      // Best-effort — don't crash if write fails
+    }
   }
 }
