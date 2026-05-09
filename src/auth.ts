@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
 import type { Response } from "express";
 import type {
   OAuthServerProvider,
@@ -11,11 +10,6 @@ import type {
   OAuthTokens,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
-import {
-  InvalidTokenError,
-  InvalidGrantError,
-  InvalidClientMetadataError,
-} from "@modelcontextprotocol/sdk/server/auth/errors.js";
 
 const YNAB_AUTHORIZE_URL = "https://app.ynab.com/oauth/authorize";
 const YNAB_TOKEN_URL = "https://api.youneedabudget.com/oauth/token";
@@ -35,53 +29,40 @@ interface PendingCode {
   expiresAt: number;
 }
 
-interface RegisteredClient {
-  client: OAuthClientInformationFull;
-  expiresAt: number;
-}
-
 export class YNABOAuthProvider implements OAuthServerProvider {
   private readonly ynabClientId: string;
   private readonly ynabClientSecret: string;
   private readonly callbackUrl: string;
-  private readonly _clientsFile: string | null;
 
-  private readonly _clients = new Map<string, RegisteredClient>();
+  private readonly _clients = new Map<string, OAuthClientInformationFull>();
   private readonly _pendingAuths = new Map<string, PendingAuth>();
   private readonly _pendingCodes = new Map<string, PendingCode>();
-  private readonly _cleanupTimer: ReturnType<typeof setInterval>;
 
-  constructor(ynabClientId: string, ynabClientSecret: string, serverUrl: string, clientsFile?: string) {
+  constructor(ynabClientId: string, ynabClientSecret: string, serverUrl: string) {
     this.ynabClientId = ynabClientId;
     this.ynabClientSecret = ynabClientSecret;
     this.callbackUrl = `${serverUrl}/oauth/callback`;
-    this._clientsFile = clientsFile ?? null;
-    if (this._clientsFile) this._loadClients();
-    this._cleanupTimer = setInterval(() => this._cleanupExpired(), 10 * 60 * 1000);
-    this._cleanupTimer.unref();
   }
 
   get clientsStore(): OAuthRegisteredClientsStore {
     return {
-      getClient: (clientId: string) => this._clients.get(clientId)?.client,
+      getClient: (clientId: string) => this._clients.get(clientId),
       registerClient: (clientData) => {
-        for (const uri of clientData.redirect_uris) {
-          const { hostname } = new URL(uri);
-          if (hostname !== "localhost" && hostname !== "127.0.0.1") {
-            throw new InvalidClientMetadataError(`Redirect URI must use localhost: ${uri}`);
-          }
-        }
-        const clientId = randomUUID();
+        const existing = this._clients.get(this.ynabClientId);
+        const mergedUris = [
+          ...new Set([
+            ...(existing?.redirect_uris ?? []),
+            ...clientData.redirect_uris,
+          ]),
+        ];
         const client: OAuthClientInformationFull = {
           ...clientData,
-          client_id: clientId,
+          redirect_uris: mergedUris,
+          client_id: this.ynabClientId,
+          client_secret: this.ynabClientSecret,
           client_id_issued_at: Math.floor(Date.now() / 1000),
         };
-        this._clients.set(clientId, {
-          client,
-          expiresAt: Date.now() + 24 * 60 * 60 * 1000,
-        });
-        this._saveClients();
+        this._clients.set(this.ynabClientId, client);
         return client;
       },
     };
@@ -190,7 +171,7 @@ export class YNABOAuthProvider implements OAuthServerProvider {
       body: params.toString(),
     });
     if (!response.ok) {
-      throw new InvalidGrantError(`YNAB token refresh failed: ${response.status}`);
+      throw new Error(`YNAB token refresh failed: ${response.status}`);
     }
     const tokens = (await response.json()) as {
       access_token: string;
@@ -208,7 +189,7 @@ export class YNABOAuthProvider implements OAuthServerProvider {
     const response = await fetch(YNAB_USER_URL, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!response.ok) throw new InvalidTokenError("Invalid or expired YNAB token");
+    if (!response.ok) throw new Error("Invalid or expired YNAB token");
     return {
       token,
       clientId: this.ynabClientId,
@@ -221,35 +202,5 @@ export class YNABOAuthProvider implements OAuthServerProvider {
     const now = Date.now();
     for (const [k, v] of this._pendingAuths) if (now > v.expiresAt) this._pendingAuths.delete(k);
     for (const [k, v] of this._pendingCodes) if (now > v.expiresAt) this._pendingCodes.delete(k);
-    let clientsChanged = false;
-    for (const [k, v] of this._clients) {
-      if (now > v.expiresAt) {
-        this._clients.delete(k);
-        clientsChanged = true;
-      }
-    }
-    if (clientsChanged) this._saveClients();
-  }
-
-  private _loadClients(): void {
-    try {
-      const raw = readFileSync(this._clientsFile!, "utf8");
-      const data = JSON.parse(raw) as Record<string, RegisteredClient>;
-      const now = Date.now();
-      for (const [id, entry] of Object.entries(data)) {
-        if (entry.expiresAt > now) this._clients.set(id, entry);
-      }
-    } catch {
-      // File missing or corrupt — start with empty map
-    }
-  }
-
-  private _saveClients(): void {
-    if (!this._clientsFile) return;
-    try {
-      writeFileSync(this._clientsFile, JSON.stringify(Object.fromEntries(this._clients)), "utf8");
-    } catch {
-      // Best-effort — don't crash if write fails
-    }
   }
 }
