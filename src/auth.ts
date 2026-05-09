@@ -11,6 +11,7 @@ import type {
   OAuthTokens,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
+import { InvalidTokenError, InvalidClientMetadataError } from "@modelcontextprotocol/sdk/server/auth/errors.js";
 
 const YNAB_AUTHORIZE_URL = "https://app.ynab.com/oauth/authorize";
 const YNAB_TOKEN_URL = "https://api.youneedabudget.com/oauth/token";
@@ -63,7 +64,7 @@ export class YNABOAuthProvider implements OAuthServerProvider {
         for (const uri of clientData.redirect_uris) {
           const { hostname } = new URL(uri);
           if (hostname !== "localhost" && hostname !== "127.0.0.1") {
-            throw new Error(`Redirect URI must use localhost: ${uri}`);
+            throw new InvalidClientMetadataError(`Redirect URI must use localhost: ${uri}`);
           }
         }
         const clientId = randomUUID();
@@ -203,7 +204,7 @@ export class YNABOAuthProvider implements OAuthServerProvider {
     const response = await fetch(YNAB_USER_URL, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!response.ok) throw new Error("Invalid or expired YNAB token");
+    if (!response.ok) throw new InvalidTokenError("Invalid or expired YNAB token");
     return {
       token,
       clientId: this.ynabClientId,
