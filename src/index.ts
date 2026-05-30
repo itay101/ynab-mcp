@@ -45,6 +45,7 @@ if (process.env.PORT) {
   const resourceMetadataUrl = `${serverUrl}/.well-known/oauth-protected-resource`;
 
   const app = express();
+  app.set("trust proxy", 1);
   app.use(express.json());
   app.use(mcpAuthRouter({ provider, issuerUrl, resourceName: "YNAB MCP Server" }));
 
