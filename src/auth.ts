@@ -10,6 +10,7 @@ import type {
   OAuthTokens,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
+import { InvalidTokenError } from "@modelcontextprotocol/sdk/server/auth/errors.js";
 
 const YNAB_AUTHORIZE_URL = "https://app.ynab.com/oauth/authorize";
 const YNAB_TOKEN_URL = "https://api.youneedabudget.com/oauth/token";
@@ -48,21 +49,13 @@ export class YNABOAuthProvider implements OAuthServerProvider {
     return {
       getClient: (clientId: string) => this._clients.get(clientId),
       registerClient: (clientData) => {
-        const existing = this._clients.get(this.ynabClientId);
-        const mergedUris = [
-          ...new Set([
-            ...(existing?.redirect_uris ?? []),
-            ...clientData.redirect_uris,
-          ]),
-        ];
+        const clientId = randomUUID();
         const client: OAuthClientInformationFull = {
           ...clientData,
-          redirect_uris: mergedUris,
-          client_id: this.ynabClientId,
-          client_secret: this.ynabClientSecret,
+          client_id: clientId,
           client_id_issued_at: Math.floor(Date.now() / 1000),
         };
-        this._clients.set(this.ynabClientId, client);
+        this._clients.set(clientId, client);
         return client;
       },
     };
@@ -189,7 +182,8 @@ export class YNABOAuthProvider implements OAuthServerProvider {
     const response = await fetch(YNAB_USER_URL, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!response.ok) throw new Error("Invalid or expired YNAB token");
+    console.log(`[auth] verifyAccessToken status=${response.status}`);
+    if (!response.ok) throw new InvalidTokenError("Invalid or expired YNAB token");
     return {
       token,
       clientId: this.ynabClientId,
