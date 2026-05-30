@@ -70,16 +70,25 @@ if (process.env.PORT) {
   const bearerAuth = requireBearerAuth({ verifier: provider, resourceMetadataUrl });
 
   async function mcpHandler(req: express.Request, res: express.Response): Promise<void> {
-    const token = req.auth!.token;
-    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-    const server = createMcpServer(token);
-    await server.connect(transport);
-    await transport.handleRequest(req, res, req.body);
-    res.on("finish", () => server.close());
+    console.log(`[mcp] ${req.method} auth=${!!req.auth} body=${JSON.stringify(req.body)?.slice(0, 100)}`);
+    try {
+      const token = req.auth!.token;
+      const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+      const server = createMcpServer(token);
+      await server.connect(transport);
+      await transport.handleRequest(req, res, req.body);
+      res.on("finish", () => server.close());
+    } catch (err) {
+      console.error("[mcp] handler error:", err);
+      if (!res.headersSent) {
+        res.status(500).json({ jsonrpc: "2.0", error: { code: -32603, message: "Internal server error" }, id: null });
+      }
+    }
   }
 
   app.post("/mcp", bearerAuth, mcpHandler);
   app.get("/mcp", bearerAuth, mcpHandler);
+  app.delete("/mcp", bearerAuth, mcpHandler);
 
   app.listen(port, () => console.log(`ynab-mcp listening on port ${port}`));
 } else {
