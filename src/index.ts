@@ -86,6 +86,7 @@ if (process.env.PORT) {
     }
   }
 
+  app.get("/health", (_req, res) => res.json({ status: "ok" }));
   app.post("/mcp", bearerAuth, mcpHandler);
   app.get("/mcp", bearerAuth, mcpHandler);
   app.delete("/mcp", bearerAuth, mcpHandler);
