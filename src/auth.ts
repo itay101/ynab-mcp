@@ -152,6 +152,7 @@ export class YNABOAuthProvider implements OAuthServerProvider {
     _client: OAuthClientInformationFull,
     refreshToken: string
   ): Promise<OAuthTokens> {
+    console.log("[auth] exchangeRefreshToken called — attempting YNAB token refresh");
     const params = new URLSearchParams({
       grant_type: "refresh_token",
       refresh_token: refreshToken,
@@ -164,8 +165,10 @@ export class YNABOAuthProvider implements OAuthServerProvider {
       body: params.toString(),
     });
     if (!response.ok) {
+      console.log(`[auth] exchangeRefreshToken failed: ${response.status}`);
       throw new Error(`YNAB token refresh failed: ${response.status}`);
     }
+    console.log("[auth] exchangeRefreshToken succeeded — new tokens issued");
     const tokens = (await response.json()) as {
       access_token: string;
       refresh_token: string;

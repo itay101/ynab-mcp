@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: ynab-mcp
+    plan: free
+    runtime: node
+    branch: main
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: YNAB_CLIENT_ID
+        sync: false
+      - key: YNAB_CLIENT_SECRET
+        sync: false
+      - key: SERVER_URL
+        sync: false
